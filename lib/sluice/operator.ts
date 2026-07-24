@@ -92,7 +92,7 @@ export async function createRail(options: { payer: Address; payee: Address }): P
   const client = synapse().client
   const contract = payContract()
 
-  const { request, result } = await simulateContract(client, {
+  const { request } = await simulateContract(client, {
     address: contract.address,
     abi: contract.abi,
     functionName: 'createRail',
@@ -111,14 +111,26 @@ export async function createRail(options: { payer: Address; payee: Address }): P
 
   const txHash = await writeContract(client, request)
 
-  // createRail returns the id, but only a mined receipt proves it. Wait here —
-  // the caller cannot use a rail id that might not exist.
   const receipt = await waitForTransactionReceipt(client, { hash: txHash })
   if (receipt.status !== 'success') {
     throw errors.upstream('Rail creation reverted on-chain.')
   }
 
-  return { txHash, railId: result as bigint }
+  // The rail id must come from the emitted event, not the simulation's return
+  // value. Rail ids are a global counter, so any rail created between the
+  // simulate and this tx mining makes the simulated id point at a *stranger's*
+  // rail — after which modifyRailLockup reverts with OnlyRailOperatorAllowed.
+  const events = parseEventLogs({ abi: contract.abi, eventName: 'RailCreated', logs: receipt.logs })
+  const created = events.find((event) => {
+    const args = event.args as { payer?: Address; operator?: Address }
+    return args.operator?.toLowerCase() === client.account.address.toLowerCase()
+  })
+  if (created == null) {
+    throw errors.upstream('Rail creation mined but emitted no RailCreated event for this operator.')
+  }
+  const railId = (created.args as { railId: bigint }).railId
+
+  return { txHash, railId }
 }
 
 /**
