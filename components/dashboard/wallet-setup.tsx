@@ -37,6 +37,10 @@ export function WalletSetup({ account }: { account: AccountHook }) {
   const [rateAllowance, setRateAllowance] = useState('0.01')
   const [lockupAllowance, setLockupAllowance] = useState('5')
   const [depositAmount, setDepositAmount] = useState('1')
+  // Whether the allowance form is open for an existing grant. Distinct from
+  // `busy`: the form must appear on "Change limits" and stay editable until the
+  // user submits, rather than firing the wallet prompt with the old values.
+  const [editing, setEditing] = useState(false)
 
   const linked = account.account?.walletAddress != null
   const linkedMatches =
@@ -107,8 +111,21 @@ export function WalletSetup({ account }: { account: AccountHook }) {
       setNotice(`Submitted ${hash.slice(0, 10)}… waiting for confirmation (~30s).`)
       await publicClient?.waitForTransactionReceipt({ hash }).catch(() => null)
       await account.refresh()
+      setEditing(false)
       return 'Operator access granted. Agents can now spend within these limits.'
     })
+
+  /** Open the allowance form for an existing grant, prefilled with its current
+   * limits so the user edits from where they are rather than the defaults. */
+  const editLimits = () => {
+    if (approval != null) {
+      setLockupAllowance(approval.lockupAllowanceUsdfc)
+      setRateAllowance(approval.rateAllowanceUsdfc)
+    }
+    setError(null)
+    setNotice(null)
+    setEditing(true)
+  }
 
   /** Step 3 — fund your own Filecoin Pay account. */
   const fund = () =>
@@ -188,7 +205,7 @@ export function WalletSetup({ account }: { account: AccountHook }) {
           active={step === 2}
           detail="An on-chain approval letting Sluice move funds through payment rails on your behalf — up to these limits, and never out to itself."
         >
-          {approval?.approved === true ? (
+          {approval?.approved === true && !editing ? (
             <div className="space-y-3">
               <dl className="grid grid-cols-2 gap-x-6 gap-y-2 font-mono text-[11px] text-white/50">
                 <Row label="lockup allowance" value={`${approval.lockupAllowanceUsdfc} USDFC`} />
@@ -198,7 +215,7 @@ export function WalletSetup({ account }: { account: AccountHook }) {
               </dl>
               <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={grant}
+                  onClick={editLimits}
                   disabled={busy != null}
                   className="border border-white/20 text-white/80 text-xs px-4 py-2 hover:border-white/50 disabled:opacity-40"
                 >
@@ -215,7 +232,7 @@ export function WalletSetup({ account }: { account: AccountHook }) {
             </div>
           ) : null}
 
-          {(approval?.approved !== true || busy === 'approve') && (
+          {(approval?.approved !== true || editing) && (
             <div className="flex flex-wrap items-end gap-3 mt-3">
               <Field
                 label="max total (USDFC)"
@@ -234,8 +251,17 @@ export function WalletSetup({ account }: { account: AccountHook }) {
                 disabled={!linkedMatches || busy != null}
                 className="bg-white text-black text-sm px-5 py-2 hover:bg-white/90 disabled:opacity-40"
               >
-                {busy === 'approve' ? 'Confirming…' : 'Grant'}
+                {busy === 'approve' ? 'Confirming…' : editing ? 'Save limits' : 'Grant'}
               </button>
+              {editing && (
+                <button
+                  onClick={() => setEditing(false)}
+                  disabled={busy != null}
+                  className="border border-white/20 text-white/60 text-sm px-4 py-2 hover:border-white/40 disabled:opacity-40"
+                >
+                  Cancel
+                </button>
+              )}
             </div>
           )}
         </Step>
