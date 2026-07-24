@@ -26,6 +26,14 @@
       ]
     },
     {
+      "collectionGroup": "authorizations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "apiKeyId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "apiKeys",
       "queryScope": "COLLECTION",
       "fields": [
