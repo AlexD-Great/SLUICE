@@ -6,7 +6,7 @@ Filecoin Onchain Cloud gives you verifiable storage (PDP) and programmable payme
 
 Sluice is that missing piece: **plain REST access to Filecoin Pay and PDP, with two independent spend guardrails — one enforced by Sluice, one enforced by the chain.**
 
-Built for the FilecoinTLDR Builder Challenge, Cycle 3. **Filecoin Calibration testnet only.**
+**Filecoin Calibration testnet only.**
 
 ---
 
@@ -131,25 +131,6 @@ export SLUICE_API_KEY=sluice_sk_...
 export SLUICE_PAYEE=0x...
 python examples/demo.py
 ```
-
----
-
-## Deploying to Vercel manually
-
-1. Push the repo, then **Add New → Project** and import it.
-2. Framework preset: **Next.js**. Build command and output directory: leave as detected.
-3. Add **every** variable from `.env.example` under Settings → Environment Variables.
-   - For `FIREBASE_SERVICE_ACCOUNT_KEY`, base64-encode the JSON first — Vercel's UI mangles literal newlines:
-     ```bash
-     base64 -w0 service-account.json     # Linux
-     certutil -encode service-account.json out.txt   # Windows
-     ```
-     The server accepts either form.
-   - `NEXT_PUBLIC_*` variables are read at build time, so redeploy after changing them.
-4. Deploy, then **add the `*.vercel.app` domain to Firebase → Authentication → Settings → Authorized domains.** Sign-in will not work until you do.
-5. Check `https://<your-app>/api/v1/health` — it should report `chainId: 314159`. A `503 not_configured` names the variable you missed.
-
-**Function duration.** The routes that sign declare `maxDuration = 300`; Vercel Hobby caps this at 60s. Fine for `pay` and `modify_rate`; tight for `store`, which talks to a storage provider *and* the chain. Keep demo payloads small.
 
 ---
 

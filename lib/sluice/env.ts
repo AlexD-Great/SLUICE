@@ -107,8 +107,8 @@ export const env = {
    * Public showcase mode.
    *
    * Lets anyone who reaches the deployment act as an approver and mint a
-   * low-limit API key, so a judge or visitor can drive the whole flow without
-   * an account being provisioned for them first.
+   * low-limit API key, so a visitor can drive the whole flow without an
+   * account being provisioned for them first.
    *
    * This deliberately removes the identity half of the guardrail — the spend
    * cap and per-key budgets still apply, but *who* may approve no longer does.
