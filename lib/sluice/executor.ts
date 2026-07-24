@@ -9,6 +9,7 @@ import {
   createRail,
   modifyRailRate,
   payOnRail,
+  setRailLockup,
   terminateRail,
 } from '@/lib/sluice/operator'
 import { explorerTxUrl, formatUsdfc, parseUsdfc, synapse, walletAddress } from '@/lib/sluice/synapse'
@@ -241,6 +242,10 @@ export async function execute(
           railTxHash = created.txHash
         }
 
+        // Cover the payment with fixed lockup first. A new rail has none, and a
+        // reused one spent its last payment's lockup, so this applies either way.
+        const lockupTxHash = await setRailLockup({ railId, lockupFixed: amountRaw })
+
         const txHash = await payOnRail({ railId, amountRaw })
 
         return {
@@ -254,6 +259,7 @@ export async function execute(
             amountUsdfc: authorization.amount.usdfc,
             // Surfaced so a repeat caller can skip rail creation next time.
             railCreatedTx: railTxHash,
+            railLockupTx: lockupTxHash,
             reusableRailId: railId.toString(),
           },
         }
