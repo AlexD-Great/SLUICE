@@ -1,0 +1,838 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sluice",
+    "version": "0.1.0",
+    "description": "A safety-gated REST bridge to Filecoin Onchain Cloud. Sluice never holds your private key: you keep USDFC in your own Filecoin Pay account and grant Sluice bounded operator rights on-chain, after which agents spend over plain HTTP. Two independent limits apply — your API key's per-request cap (enforced by Sluice, above which a human must approve) and your operator allowance (enforced by the Filecoin Pay contract). Filecoin Calibration testnet only.",
+    "license": {
+      "name": "MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A Sluice API key (sluice_sk_...). Mint one in the dashboard after linking a wallet."
+      },
+      "operatorToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A Firebase Auth ID token belonging to the account whose funds are at stake. An API key is not sufficient to approve a payment."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code. Branch on this, not on the message.",
+                "enum": [
+                  "bad_request",
+                  "unauthorized",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "too_many_requests",
+                  "upstream_error",
+                  "internal_error",
+                  "not_configured"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ResolvedAmount": {
+        "type": "object",
+        "description": "What the request will cost, resolved before anything is signed.",
+        "properties": {
+          "raw": {
+            "type": "string",
+            "description": "Base units (USDFC has 18 decimals), as a decimal string."
+          },
+          "usdfc": {
+            "type": "string",
+            "description": "Whole USDFC, e.g. \"0.5\"."
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "stated",
+              "rate_change",
+              "upload_estimate",
+              "none"
+            ],
+            "description": "How the figure was arrived at. `upload_estimate` comes from the chain, not the caller."
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "Authorization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pay",
+              "modify_rate",
+              "terminate_rail",
+              "store"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "pending_approval",
+              "approved",
+              "executing",
+              "executed",
+              "rejected",
+              "failed",
+              "expired"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/ResolvedAmount"
+          },
+          "capUsdfc": {
+            "type": "string",
+            "description": "The cap this request was judged against."
+          },
+          "autoApproved": {
+            "type": "boolean"
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "txHash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "explorerUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decidedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "True while the caller should keep polling /pay/status/{id}."
+          },
+          "payerAddress": {
+            "type": "string",
+            "description": "The Filecoin Pay account being spent from. Sluice signs as operator; the funds are the user's."
+          },
+          "ownerUid": {
+            "type": "string",
+            "description": "Sluice account that owns the key, and therefore the funds."
+          }
+        }
+      },
+      "Verification": {
+        "type": "object",
+        "properties": {
+          "pieceCid": {
+            "type": "string"
+          },
+          "dataSetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "healthy": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "stale",
+              "unknown"
+            ]
+          },
+          "dataSetLastProven": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "dataSetNextProofDue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "inChallengeWindow": {
+            "type": "boolean"
+          },
+          "hoursUntilChallengeWindow": {
+            "type": "number"
+          },
+          "isProofOverdue": {
+            "type": "boolean"
+          },
+          "retrievalUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pieceId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkedAt": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/pay/authorize": {
+      "post": {
+        "summary": "Request a Filecoin Pay operation",
+        "description": "Prices the request against the caller's Filecoin Pay account, then executes it (under cap, 200) or holds it for the account owner (over cap, 202). Requests for deposit, withdraw, settle or operator approval are rejected with 400: Filecoin Pay restricts those to the account holder, so they must be signed in the browser.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Retry-safe key. A replay returns the original authorization; reuse with a different body is a 409."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "to",
+                      "amount"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "pay"
+                      },
+                      "to": {
+                        "type": "string",
+                        "description": "Recipient address."
+                      },
+                      "amount": {
+                        "type": "string",
+                        "example": "0.5"
+                      },
+                      "railId": {
+                        "type": "string",
+                        "description": "Reuse an existing rail instead of creating one. The first payment to a recipient returns `result.reusableRailId`; passing it back saves a transaction."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "railId",
+                      "ratePerEpoch"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "modify_rate"
+                      },
+                      "railId": {
+                        "type": "string",
+                        "example": "17"
+                      },
+                      "ratePerEpoch": {
+                        "type": "string",
+                        "example": "0.001",
+                        "description": "Whole USDFC per epoch."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "railId"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "terminate_rail"
+                      },
+                      "railId": {
+                        "type": "string",
+                        "example": "17"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "kind",
+                      "dataBase64"
+                    ],
+                    "properties": {
+                      "kind": {
+                        "const": "store"
+                      },
+                      "dataBase64": {
+                        "type": "string",
+                        "description": "Max 512 KiB decoded."
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "description": "Runs on the gateway's own Warm Storage account, not the caller's — see result.onGatewayAccount."
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Under cap — broadcast immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorization": {
+                      "$ref": "#/components/schemas/Authorization"
+                    },
+                    "replayed": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Over cap — held for human approval. Nothing has been signed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorization": {
+                      "$ref": "#/components/schemas/Authorization"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operator access not granted or revoked, or the on-chain allowance is exhausted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Idempotency-Key reused with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Daily budget exhausted, or another payment is mid-signature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The chain or a storage provider rejected the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The deployment is missing required configuration; the message names the variable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pay/status/{id}": {
+      "get": {
+        "summary": "Poll an authorization",
+        "description": "Also confirms broadcast transactions and expires stale approval requests, so the caller's poll loop drives the lifecycle.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorization": {
+                      "$ref": "#/components/schemas/Authorization"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such authorization, or it belongs to another key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pay/approve/{id}": {
+      "post": {
+        "summary": "Approve or reject a held payment",
+        "description": "Requires an operator's Firebase ID token. An API key is deliberately not sufficient — the agent being gated must not be able to release its own payment.",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "approve",
+                      "reject"
+                    ],
+                    "default": "approve"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Decision recorded; an approval also broadcasts the transaction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorization": {
+                      "$ref": "#/components/schemas/Authorization"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "This account may not approve payments.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not awaiting approval, or already decided.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pay/list": {
+      "get": {
+        "summary": "List the calling key's authorizations",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Most recent first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authorizations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Authorization"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/verify/{pieceCid}": {
+      "get": {
+        "summary": "PDP proof status for a stored piece",
+        "description": "No authentication required — it is a read-only chain query. Takes a PieceCID (bafkzc...), not an IPFS CID. Proofs are submitted per data set, so the timestamps describe the data set containing the piece.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "pieceCid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Address whose data sets to search. Defaults to the gateway's own wallet."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Proof status. `status` is \"unknown\" when the piece is not found in any data set owned by `client`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verification"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not a PieceCID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Gateway wallet and escrow balances",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "summary": "Aggregate counters for the public dashboard",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Totals only — no per-key figures."
+          }
+        }
+      }
+    },
+    "/account/me": {
+      "get": {
+        "summary": "Account state and live operator grant",
+        "description": "Creates the account record on first sign-in and reads the on-chain operator approval.",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account, the address to approve as operator, and whether it is ready to spend."
+          }
+        }
+      },
+      "post": {
+        "summary": "Re-read the on-chain operator grant",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Refreshed account state."
+          }
+        }
+      }
+    },
+    "/account/wallet": {
+      "post": {
+        "summary": "Request a wallet-link challenge",
+        "description": "Returns a message to sign. Costs no gas and authorises nothing — it only proves address ownership.",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The message to sign, plus Sluice's operator address."
+          }
+        }
+      },
+      "put": {
+        "summary": "Verify the signature and link the wallet",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet linked."
+          },
+          "403": {
+            "description": "Signature does not match the address."
+          },
+          "409": {
+            "description": "That address is already linked to another account."
+          }
+        }
+      }
+    },
+    "/account/keys": {
+      "get": {
+        "summary": "List your API keys",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Keys, without hashes."
+          }
+        }
+      },
+      "post": {
+        "summary": "Mint an API key",
+        "description": "Requires a linked wallet. The plaintext key is returned once and never stored.",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The plaintext key — shown only here."
+          },
+          "403": {
+            "description": "No linked wallet."
+          }
+        }
+      }
+    },
+    "/account/keys/{id}": {
+      "delete": {
+        "summary": "Revoke an API key",
+        "description": "Revokes rather than deletes, so past authorizations stay attributable.",
+        "security": [
+          {
+            "operatorToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Revoked."
+          }
+        }
+      }
+    }
+  }
+}
