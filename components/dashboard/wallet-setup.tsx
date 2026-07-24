@@ -114,7 +114,12 @@ export function WalletSetup({ account }: { account: AccountHook }) {
   const fund = () =>
     run('deposit', async () => {
       if (walletClient == null) throw new Error('Connect a wallet first.')
-      const hash = await Pay.deposit(walletClient, { amount: parseUnits(depositAmount, 18) })
+      // `deposit` calls transferFrom, so it needs a prior ERC-20 approval of the
+      // Payments contract — without one it reverts with "Insufficient allowance"
+      // no matter how much USDFC the wallet holds. `depositWithPermit` carries
+      // that allowance as an EIP-2612 signature instead: one transaction, and no
+      // standing approval left behind.
+      const hash = await Pay.depositWithPermit(walletClient, { amount: parseUnits(depositAmount, 18) })
       setNotice(`Submitted ${hash.slice(0, 10)}… waiting for confirmation (~30s).`)
       await publicClient?.waitForTransactionReceipt({ hash }).catch(() => null)
       await account.refresh()
