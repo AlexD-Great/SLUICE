@@ -26,6 +26,15 @@ import type { Authorization, PaymentKind, ResolvedAmount } from '@/lib/sluice/ty
 export const MAX_STORE_BYTES = 512 * 1024
 
 /**
+ * Floor on inline payloads.
+ *
+ * PDP providers reject pieces below 127 bytes, and that rejection only surfaces
+ * mid-upload as an opaque 502. Checking here turns it into a clear 400 before
+ * anything is priced or signed.
+ */
+export const MIN_STORE_BYTES = 127
+
+/**
  * A validated, priced request — everything needed to decide whether a human
  * must approve, resolved before a single byte is signed.
  */
@@ -129,6 +138,11 @@ export async function resolveRequest(
       }
       if (payload.byteLength === 0) {
         throw errors.badRequest('Field "dataBase64" decoded to zero bytes.')
+      }
+      if (payload.byteLength < MIN_STORE_BYTES) {
+        throw errors.badRequest(
+          `Payload is ${payload.byteLength} bytes; PDP providers require at least ${MIN_STORE_BYTES}. Pad the data before storing.`
+        )
       }
       if (payload.byteLength > MAX_STORE_BYTES) {
         throw errors.badRequest(

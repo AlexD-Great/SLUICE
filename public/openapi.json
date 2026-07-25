@@ -353,7 +353,7 @@
                       },
                       "dataBase64": {
                         "type": "string",
-                        "description": "Max 512 KiB decoded."
+                        "description": "Between 127 bytes and 512 KiB decoded."
                       },
                       "label": {
                         "type": "string"
