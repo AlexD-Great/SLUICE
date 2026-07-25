@@ -47,13 +47,24 @@ def authorize(payload, idempotency_key=None):
 
 
 def wait(auth_id, timeout=600):
-    """Poll until terminal. A held payment waits on a human, so be patient."""
+    """Poll until terminal. A held payment waits on a human, so be patient.
+
+    A single slow poll is expected — the status endpoint confirms the on-chain
+    receipt, and one Calibration RPC call or a cold serverless start can exceed
+    a request timeout. Treat that as "not ready yet" and keep polling; only give
+    up once the overall deadline passes.
+    """
     deadline = time.time() + timeout
     last = None
     while time.time() < deadline:
-        response = requests.get(f"{SLUICE}/api/v1/pay/status/{auth_id}", headers=AUTH, timeout=30)
-        response.raise_for_status()
-        current = response.json()["authorization"]
+        try:
+            response = requests.get(f"{SLUICE}/api/v1/pay/status/{auth_id}", headers=AUTH, timeout=60)
+            response.raise_for_status()
+            current = response.json()["authorization"]
+        except requests.exceptions.RequestException as exc:
+            print(f"  (transient: {exc.__class__.__name__}, still polling)")
+            time.sleep(3)
+            continue
         if current["status"] != last:
             print(f"  status: {current['status']}")
             last = current["status"]
