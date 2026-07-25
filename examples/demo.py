@@ -103,7 +103,10 @@ else:
 
 # --------------------------------------------------------------------------
 rule("3. Store a piece, then verify its PDP proof")
-payload = base64.b64encode(f"sluice demo {time.time()}".encode()).decode()
+# PDP providers reject pieces below 127 bytes, so pad past that floor while
+# keeping the payload unique per run.
+blob = f"sluice demo {time.time()} ".encode() + b"." * 200
+payload = base64.b64encode(blob).decode()
 stored, _ = authorize({"kind": "store", "dataBase64": payload, "label": "demo"})
 stored = wait(stored["id"])
 
